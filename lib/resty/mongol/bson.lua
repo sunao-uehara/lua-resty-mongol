@@ -126,9 +126,9 @@ local function pack ( k , v )
 
 	if ot == "number" then
         if floor(v) == v then
-		    return "\16" .. k .. "\0" .. num_to_le_int ( v )
+            return "\16" .. k .. "\0" .. num_to_le_int ( v )
         else
-		    return "\1" .. k .. "\0" .. to_double ( v )
+            return "\1" .. k .. "\0" .. to_double ( v )
         end
 	elseif ot == "nil" then
 		return "\10" .. k .. "\0"
