@@ -126,7 +126,11 @@ local function pack ( k , v )
 
 	if ot == "number" then
         if floor(v) == v then
-            return "\16" .. k .. "\0" .. num_to_le_int ( v )
+            if v >= -2^31 and v <= 2^31-1 then --int32
+                return "\16" .. k .. "\0" .. num_to_le_int ( v )
+            else --int64
+                return "\18" .. k .. "\0" .. num_to_le_int ( v, 8 )
+            end
         else
             return "\1" .. k .. "\0" .. to_double ( v )
         end
