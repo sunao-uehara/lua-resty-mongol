@@ -158,7 +158,7 @@ local function pack ( k , v )
 		else
 			return "\3" .. k .. "\0" .. doc
 		end
-    elseif ot == "userdata" and v == "NULL" then
+    elseif ot == "userdata" and tostring(v) == "userdata: NULL" then
         return "\10" .. k .. "\0"
 	else
 		error ( "Failure converting " .. ot ..": " .. tostring ( v ) )
