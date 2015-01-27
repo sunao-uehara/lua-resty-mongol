@@ -10,6 +10,7 @@ Dependancies
 luajit(or `attempt to yield across metamethod/C-call boundary error` will be produced.)
 
 [ngx_lua 0.5.0rc5](https://github.com/chaoslawful/lua-nginx-module/tags) or [ngx_openresty 1.0.11.7](http://openresty.org/#Download) is required.
+TO Authenticate for mongo2.8(3.0) or later [bungle/lua-resty-nettle](https://github.com/bungle/lua-resty-nettle) Component is also required.
 
 
 Installation
@@ -102,7 +103,7 @@ Returns 1 in case of success, or nil with error message.
 
 ####ok, err = db:auth_scram_sha1(username, password)
 Returns 1 in case of success, or nil with error message.
-Authenticate using SCRAM-SHA-1 which is the default authentication mechanism supported by a cluster configured for authentication with MongoDB 2.8 or later.
+Authenticate using SCRAM-SHA-1 which is the default authentication mechanism supported by a cluster configured for authentication with MongoDB 2.8(3.0) or later.
 
 ####col = db:get_col(collection_name)
 Returns a collection object for more operations.
