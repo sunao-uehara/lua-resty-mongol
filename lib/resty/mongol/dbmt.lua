@@ -48,21 +48,6 @@ local function pass_digest ( username , password )
     return ngx.md5(username .. ":mongo:" .. password)
 end
 
-local function lua_string_split(str, split_char)
-    local sub_str_tab = {};
-    while (true) do
-        local pos = string.find(str, split_char);
-        if (not pos) then
-            sub_str_tab[#sub_str_tab + 1] = str;
-            break;
-        end
-        local sub_str = string.sub(str, 1, pos - 1);
-        sub_str_tab[#sub_str_tab + 1] = sub_str;
-        str = string.sub(str, pos + 1, #str);
-    end
-    return sub_str_tab;
-end
-
 function dbmethods:add_user ( username , password )
     local digest = pass_digest ( username , password )
     return self:update ( "system.users" , { user = username } , { ["$set"] = { pwd = password } } , true )
@@ -103,26 +88,16 @@ function dbmethods:auth_scram_sha1(username, password)
     if not r then
         return nil, err
     end
-    
     local conversationId = r['conversationId']
     local server_first = r['payload']
     local parsed_s = ngx.decode_base64(server_first)
-    --parsed_s = "r=7942062924314CLjX/YNCv/cXedQ01YMGGuBSCPDmhHY,s=Cv2TUDM5tdFwwXJ3BP5LBw==,i=10000"
-    local parsed_s_t = lua_string_split(parsed_s, ',')
-    local iterations = 0
-    local salt = ""
-    local rnonce = ""
-    for i,v in ipairs(parsed_s_t) do
-        if string.match(v,  '^i=*') then
-            iterations = tonumber(string.sub(v, 3, #v))
-        end
-        if string.match(v,  '^s=*') then
-            salt = string.sub(v, 3, #v)
-        end
-        if string.match(v,  '^r=*') then
-            rnonce = string.sub(v, 3, #v)
-        end
+    local parsed_t = {}
+    for k, v in string.gmatch(parsed_s, "(%w+)=([^,]*)") do
+        parsed_t[k] = v
     end
+    local iterations = tonumber(parsed_t['i'])
+    local salt = parsed_t['s']
+    local rnonce = parsed_t['r']
     if not string.sub(rnonce, 1, 12) == nonce then
         return nil, 'Server returned an invalid nonce.'
     end
@@ -133,7 +108,6 @@ function dbmethods:auth_scram_sha1(username, password)
     local stored_key = ngx.sha1_bin(client_key)
     local auth_msg = first_bare .. ',' .. parsed_s .. ',' .. without_proof
     local client_sig = ngx.hmac_sha1(stored_key, auth_msg)
-
     local client_key_xor_sig = ""
     for i=1,#client_key do
         client_key_xor_sig = client_key_xor_sig .. string.char(bit.bxor(string.byte(client_key,i,i), string.byte(client_sig, i, i)))
@@ -152,15 +126,11 @@ function dbmethods:auth_scram_sha1(username, password)
         return nil, err
     end
     parsed_s = ngx.decode_base64(r['payload'])
-    parsed_s_t = lua_string_split(parsed_s, ',')
-    local get_server_sig = ""
-    for i,v in ipairs(parsed_s_t) do
-        if string.match(v,  '^v=*') then
-            get_server_sig = string.sub(v, 3, #v)
-        end
+    parsed_t = {}
+    for k, v in string.gmatch(parsed_s, "(%w+)=([^,]*)") do
+        parsed_t[k] = v
     end
-
-    if get_server_sig ~= server_sig then
+    if parsed_t['v'] ~= server_sig then
         return nil, "Server returned an invalid signature."
     end
     if not r['done'] then
