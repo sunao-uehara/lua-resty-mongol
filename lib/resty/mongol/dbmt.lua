@@ -12,8 +12,6 @@ local gridfs = require ( mod_name .. ".gridfs" )
 local dbmethods = { }
 local dbmt = { __index = dbmethods }
 
-local pbkdf2 = require "resty.nettle.pbkdf2"
-
 function dbmethods:cmd(q)
     local collection = "$cmd"
     local col = self:get_col(collection)
@@ -46,6 +44,31 @@ end
 
 local function pass_digest ( username , password )
     return ngx.md5(username .. ":mongo:" .. password)
+end
+
+--  XOR two byte strings together
+local function xor_bytestr( a, b )
+    local res = ""    
+    for i=1,#a do
+        res = res .. string.char(bit.bxor(string.byte(a,i,i), string.byte(b, i, i)))
+    end
+    return res
+end
+
+-- A simple implementation of PBKDF2_HMAC_SHA1
+local function pbkdf2_hmac_sha1( pbkdf2_key, iterations, salt, len )
+    local u1 = ngx.hmac_sha1(pbkdf2_key, salt .. string.char(0) .. string.char(0) .. string.char(0) .. string.char(1))
+    local ui = u1
+    for i=1,iterations-1 do
+        u1 = ngx.hmac_sha1(pbkdf2_key, u1)
+        ui = xor_bytestr(ui, u1)
+    end
+    if #ui < len then
+        for i=1,len-(#ui) do
+            ui = string.char(0) .. ui
+        end
+    end
+    return ui
 end
 
 function dbmethods:add_user ( username , password )
@@ -88,6 +111,7 @@ function dbmethods:auth_scram_sha1(username, password)
     if not r then
         return nil, err
     end
+    
     local conversationId = r['conversationId']
     local server_first = r['payload']
     local parsed_s = ngx.decode_base64(server_first)
@@ -98,20 +122,18 @@ function dbmethods:auth_scram_sha1(username, password)
     local iterations = tonumber(parsed_t['i'])
     local salt = parsed_t['s']
     local rnonce = parsed_t['r']
+
     if not string.sub(rnonce, 1, 12) == nonce then
         return nil, 'Server returned an invalid nonce.'
     end
     local without_proof = "c=biws,r=" .. rnonce
     local pbkdf2_key = pass_digest ( username , password )
-    local salted_pass = pbkdf2.hmac_sha1(pbkdf2_key, iterations, ngx.decode_base64(salt), 20)
+    local salted_pass = pbkdf2_hmac_sha1(pbkdf2_key, iterations, ngx.decode_base64(salt), 20)
     local client_key = ngx.hmac_sha1(salted_pass, "Client Key")
     local stored_key = ngx.sha1_bin(client_key)
     local auth_msg = first_bare .. ',' .. parsed_s .. ',' .. without_proof
     local client_sig = ngx.hmac_sha1(stored_key, auth_msg)
-    local client_key_xor_sig = ""
-    for i=1,#client_key do
-        client_key_xor_sig = client_key_xor_sig .. string.char(bit.bxor(string.byte(client_key,i,i), string.byte(client_sig, i, i)))
-    end
+    local client_key_xor_sig = xor_bytestr(client_key, client_sig)
     local client_proof = "p=" .. ngx.encode_base64(client_key_xor_sig)
     local client_final = ngx.encode_base64(without_proof .. ',' .. client_proof)
     local server_key = ngx.hmac_sha1(salted_pass, "Server Key")
@@ -133,6 +155,7 @@ function dbmethods:auth_scram_sha1(username, password)
     if parsed_t['v'] ~= server_sig then
         return nil, "Server returned an invalid signature."
     end
+    
     if not r['done'] then
         r, err = self:cmd(attachpairs_start({
             saslContinue = 1 ;
