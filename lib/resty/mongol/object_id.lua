@@ -43,6 +43,8 @@ end
 local object_id_mt = {
     __tostring = _tostring;
     __eq = function ( a , b ) return a.id == b.id end ;
+    __lt = function ( a , b ) return a.id < b.id end ;
+    __le = function ( a , b ) return a.id <= b.id end ;
 }
 
 local machineid
