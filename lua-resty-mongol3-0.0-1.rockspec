@@ -1,8 +1,8 @@
-package = "resty-mongol3"
-version = "0.0-1"
+package = "lua-resty-mongol3"
+version = "0.1-1"
 source = {
-  url = "https://github.com/sunao-uehara/archive/master.zip",
-  dir = "lua-resty-mongol-master"
+  url = "git://github.com/sunao-uehara/lua-resty-mongol",
+  tag = "v0.1",
 }
 description = {
   summary = "Mongo driver for openresty.",
